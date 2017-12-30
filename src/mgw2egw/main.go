@@ -165,7 +165,6 @@ func main() {
 		} else {
 			Info.Println("Skipping Proxy: ", edgemicroproxy)
 		}
-		break //remove this later
 	}
 }
 
