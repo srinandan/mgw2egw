@@ -82,4 +82,4 @@ The binary file will be stored in `MGW2EGW_HOME/bin`
 
 ### TODO
 * Automated testing
-* Add supported for JWT policies
+* Add support for VerifyJWT  
