@@ -25,7 +25,6 @@ import (
 	"strings"
 )
 
-//const oauthPath string = "./templates/OAuth-v20-1.xml"
 const oauthPath string = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <OAuthV2 async="false" continueOnError="false" enabled="true" name="OAuth-v20-1">
     <DisplayName>OAuth v2.0-1</DisplayName>
@@ -39,7 +38,6 @@ const oauthPath string = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?
 </OAuthV2>`
 const oauthName string = "/OAuth-v20-1.xml"
 
-//const quotaPath string = "./templates/Quota-1.xml"
 const quotaPathAPIKey string = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Quota async="false" continueOnError="false" enabled="true" name="Quota-1" type="calendar">
     <DisplayName>Quota-1</DisplayName>
@@ -64,7 +62,6 @@ const quotaPathOAuth string = `<?xml version="1.0" encoding="UTF-8" standalone="
 </Quota>`
 const quotaName string = "/Quota-1.xml"
 
-//const spikeArrestPath string = "./templates/Spike-Arrest-1.xml"
 var spikeArrestPath string = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <SpikeArrest async="false" continueOnError="false" enabled="true" name="Spike-Arrest-1">
     <DisplayName>Spike Arrest-1</DisplayName>
@@ -74,7 +71,6 @@ var spikeArrestPath string = `<?xml version="1.0" encoding="UTF-8" standalone="y
 
 const spikeArrestName string = "/Spike-Arrest-1.xml"
 
-//const verifyApiKeyPath string = "./templates/Verify-API-Key-1.xml"
 const verifyApiKeyPath string = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <VerifyAPIKey async="false" continueOnError="false" enabled="true" name="Verify-API-Key-1">
     <DisplayName>Verify API Key-1</DisplayName>
@@ -83,6 +79,54 @@ const verifyApiKeyPath string = `<?xml version="1.0" encoding="UTF-8" standalone
 </VerifyAPIKey>`
 
 const verifyApiKeyName string = "/Verify-API-Key-1.xml"
+
+const extractVarPath string = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<ExtractVariables async="false" continueOnError="false" enabled="true" name="Extract-Variables-1">
+    <DisplayName>Extract Variables-1</DisplayName>
+    <Properties/>
+    <Header name="Authorization">
+        <Pattern ignoreCase="false">Bearer {oauthtoken}</Pattern>
+    </Header>
+    <IgnoreUnresolvedVariables>true</IgnoreUnresolvedVariables>
+    <Source clearPayload="false">request</Source>
+</ExtractVariables>`
+const extractVarName string = "/Extract-Variables-1.xml"
+
+const kvmPath string = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<KeyValueMapOperations async="false" continueOnError="false" enabled="true" name="Key-Value-Map-Operations-1" mapIdentifier="microgateway">
+    <DisplayName>Key Value Map Operations-1</DisplayName>
+    <Properties/>
+    <ExclusiveCache>false</ExclusiveCache>
+    <ExpiryTimeInSecs>300</ExpiryTimeInSecs>
+    <Get assignTo="private.publicKey" index="1">
+        <Key>
+            <Parameter>public_key</Parameter>
+        </Key>
+    </Get>
+    <Scope>environment</Scope>
+</KeyValueMapOperations>`
+const kvmName string = "/Key-Value-Map-Operations-1.xml"
+
+const verifyJwtPath string = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<VerifyJWT async="false" continueOnError="false" enabled="true" name="Verify-JWT-1">
+    <DisplayName>Verify JWT-1</DisplayName>
+    <Algorithm>RS256</Algorithm>
+    <Source>oauthtoken</Source>
+    <PublicKey>
+        <Value ref="private.publicKey"/>
+    </PublicKey>
+    <CustomClaims>
+        <Claim name="audience">microgateway</Claim>
+    </CustomClaims>
+</VerifyJWT>`
+const verifyJwtName string = "/Verify-JWT-1.xml"
+
+const verifyApiKeyPath2 string = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<VerifyAPIKey async="false" continueOnError="false" enabled="true" name="Verify-API-Key-1">
+    <DisplayName>Verify API Key-1</DisplayName>
+    <Properties/>
+    <APIKey ref="jwt.Verify-JWT-1.custom_claim.client_id"/>
+</VerifyAPIKey>`
 
 // Unzip will uncompress a zip archive
 func Unzip(src, dest string) ([]string, error) {
@@ -204,8 +248,36 @@ func CopyAPIKey(folder string) error {
 	return nil
 }
 
-func Cleanup(bundleName string) error {
-	err := os.Remove(bundleName)
+func CopyJWT(folder string) error {
+
+	err := writeFile(folder+verifyApiKeyName, []byte(verifyApiKeyPath))
+	if err != nil {
+		return err
+	}
+
+	err = writeFile(folder+kvmName, []byte(kvmPath))
+	if err != nil {
+		return err
+	}
+
+	err = writeFile(folder+verifyJwtName, []byte(verifyJwtPath))
+	if err != nil {
+		return err
+	}
+
+	err = writeFile(folder+extractVarName, []byte(extractVarPath))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func Cleanup(bundleName string, genOnly bool) error {
+	var err error
+	if !genOnly {
+		err = os.Remove(bundleName)
+	}
 	err = os.RemoveAll(strings.Split(bundleName, ".")[0])
 	return err
 }

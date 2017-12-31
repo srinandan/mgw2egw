@@ -29,8 +29,14 @@ import (
 )
 
 var org, env, username, password, configFile, fldr string
-var infoLogger bool = false
-var clientLogger bool = false
+
+var (
+	infoLogger   bool
+	clientLogger bool
+	importOnly   bool
+	genOnly      bool
+	useJwt       bool
+)
 
 const version string = "1.0.0"
 const proxyprefix string = "edgemicro_"
@@ -38,6 +44,9 @@ const oauthPolicyName string = "OAuth-v20-1"
 const quotaPolicyName string = "Quota-1"
 const verifyApiKeyName string = "Verify-API-Key-1"
 const spikeArrestName string = "Spike-Arrest-1"
+const extractVarName string = "Extract-Variables-1"
+const kvmName string = "Key-Value-Map-Operations-1"
+const verifyJWTName string = "Verify-JWT-1"
 
 var (
 	Info    *log.Logger
@@ -78,7 +87,7 @@ func checkParams(org, env, username, password, configFile string) {
 }
 
 func main() {
-
+	//TODO: 1) import to another org/env 2) jwt policies
 	flag.StringVar(&org, "org", "", "Apigee Organization Name")
 	flag.StringVar(&env, "env", "", "Apigee Environment Name")
 	flag.StringVar(&username, "user", "", "Apigee Organization Username")
@@ -87,6 +96,9 @@ func main() {
 	flag.StringVar(&fldr, "fldr", "/var/tmp", "Destination Folder to import proxies")
 	flag.BoolVar(&infoLogger, "debug", false, "Enable debug mode")
 	flag.BoolVar(&clientLogger, "trace", false, "Enable trace on Apigee Edge Client")
+	flag.BoolVar(&importOnly, "importonly", false, "Import the proxies only, do not deploy")
+	flag.BoolVar(&genOnly, "genonly", false, "Generate the bundles only, do not import")
+	flag.BoolVar(&useJwt, "usejwt", false, "Use JWT Policies to validate OAuth tokens")
 
 	flag.Parse()
 
@@ -157,11 +169,15 @@ func main() {
 				return
 			}
 
-			Info.Println("Deploying proxy ", edgemicroproxy, " with revision ", importtedRevision, " to ", env)
-			DeployProxy(edgemicroproxy, env, revision, importtedRevision, client)
+			if !importOnly {
+				Info.Println("Deploying proxy ", edgemicroproxy, " with revision ", importtedRevision, " to ", env)
+				DeployProxy(edgemicroproxy, env, revision, importtedRevision, client)
+			} else {
+				Info.Println("Importing proxy ", edgemicroproxy, " with revision ", importtedRevision)
+			}
 
 			Info.Println("Cleaning up ", bundleName)
-			utils.Cleanup(bundleName)
+			utils.Cleanup(bundleName, genOnly)
 		} else {
 			Info.Println("Skipping Proxy: ", edgemicroproxy)
 		}
@@ -195,29 +211,37 @@ func AddPolicies(proxyName string, bundleName string, config mgconfig.Microgatew
 
 	for _, plugin := range plugins {
 		if plugin == "oauth" {
-			if mgconfig.APIKeyOnly(config) {
-				Info.Println("Adding VerifyAPIKey policy")
-				utils.CopyAPIKey(policiesFolder)
-				apiProxy = proxyutils.AddPolicyAPIProxy(verifyApiKeyName, apiProxy)
-				proxyEndpoint = proxyutils.AddPolicyProxyEndpoint(verifyApiKeyName, proxyEndpoint)
+			if useJwt {
+				Info.Println("Adding VerifyJWT policy")
+				utils.CopyJWT(policiesFolder)
+				apiProxy = proxyutils.AddPolicyAPIProxy(apiProxy, extractVarName, kvmName, verifyJWTName, verifyApiKeyName)
+				proxyEndpoint = proxyutils.AddPolicyProxyEndpoint(proxyEndpoint, extractVarName, kvmName, verifyJWTName, verifyApiKeyName)
 				oauth = false
 			} else {
-				Info.Println("Adding OAuth v2.0 policy")
-				utils.CopyOAuth(policiesFolder)
-				apiProxy = proxyutils.AddPolicyAPIProxy(oauthPolicyName, apiProxy)
-				proxyEndpoint = proxyutils.AddPolicyProxyEndpoint(oauthPolicyName, proxyEndpoint)
+				if mgconfig.APIKeyOnly(config) {
+					Info.Println("Adding VerifyAPIKey policy")
+					utils.CopyAPIKey(policiesFolder)
+					apiProxy = proxyutils.AddPolicyAPIProxy(apiProxy, verifyApiKeyName)
+					proxyEndpoint = proxyutils.AddPolicyProxyEndpoint(proxyEndpoint, verifyApiKeyName)
+					oauth = false
+				} else {
+					Info.Println("Adding OAuth v2.0 policy")
+					utils.CopyOAuth(policiesFolder)
+					apiProxy = proxyutils.AddPolicyAPIProxy(apiProxy, oauthPolicyName)
+					proxyEndpoint = proxyutils.AddPolicyProxyEndpoint(proxyEndpoint, oauthPolicyName)
+				}
 			}
 		} else if plugin == "quota" {
 			Info.Println("Adding Quota policy")
 			utils.CopyQuota(policiesFolder, oauth)
-			apiProxy = proxyutils.AddPolicyAPIProxy(quotaPolicyName, apiProxy)
-			proxyEndpoint = proxyutils.AddPolicyProxyEndpoint(quotaPolicyName, proxyEndpoint)
+			apiProxy = proxyutils.AddPolicyAPIProxy(apiProxy, quotaPolicyName)
+			proxyEndpoint = proxyutils.AddPolicyProxyEndpoint(proxyEndpoint, quotaPolicyName)
 		} else if plugin == "spikearrest" {
 			Info.Println("Adding SpikeArrest policy")
 			Timeunit, Allow := mgconfig.GetSpikeArrestDetails(config)
 			utils.CopySpikeArrest(policiesFolder, Timeunit, Allow)
-			apiProxy = proxyutils.AddPolicyAPIProxy(spikeArrestName, apiProxy)
-			proxyEndpoint = proxyutils.AddPolicyProxyEndpoint(spikeArrestName, proxyEndpoint)
+			apiProxy = proxyutils.AddPolicyAPIProxy(apiProxy, spikeArrestName)
+			proxyEndpoint = proxyutils.AddPolicyProxyEndpoint(proxyEndpoint, spikeArrestName)
 		}
 	}
 
@@ -327,9 +351,12 @@ func usage(message string) {
 	fmt.Println("conf = Apigee Edge Microgateway configuration file (mandatory)")
 	fmt.Println("")
 	fmt.Println("Other options:")
-	fmt.Println("fldr  = Folder to extract Apigee Bundle (default: /var/tmp)")
-	fmt.Println("debug = Enable debug mode (default: false)")
-	fmt.Println("trace = Enable trace on go-apigee-edge (default: false)")
+	fmt.Println("fldr   = Folder to extract Apigee Bundle (default: /var/tmp)")
+	fmt.Println("debug  = Enable debug mode (default: false)")
+	fmt.Println("trace  = Enable trace on go-apigee-edge (default: false)")
+	fmt.Println("importonly = Import the proxies only, do not deploy")
+	fmt.Println("genonly = Generate the bundles only, do not import")
+	fmt.Println("usejwt = Use JWT policies to validate OAuth tokens")
 	fmt.Println("")
 	fmt.Println("")
 	fmt.Println("Example: mgw2egw -org=trial -env=test -user=trial@apigee.com -pass=Secret123 -config=trial-test-config.yaml")

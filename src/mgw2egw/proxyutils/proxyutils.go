@@ -141,15 +141,20 @@ func WriteProxyEndpoint(proxyEndpoint ProxyEndpoint, fileName string) error {
 	return nil
 }
 
-func AddPolicyProxyEndpoint(policyName string, proxyEndpoint ProxyEndpoint) ProxyEndpoint {
-	var step Step
-	step.Name = policyName
-	proxyEndpoint.PreFlow.Request.Step = append(proxyEndpoint.PreFlow.Request.Step, step)
+func AddPolicyProxyEndpoint(proxyEndpoint ProxyEndpoint, policyNames ...string) ProxyEndpoint {
+
+	for _, policyName := range policyNames {
+		step := new(Step)
+		step.Name = policyName
+		proxyEndpoint.PreFlow.Request.Step = append(proxyEndpoint.PreFlow.Request.Step, *step)
+	}
 	return proxyEndpoint
 }
 
-func AddPolicyAPIProxy(policyName string, apiProxy APIProxy) APIProxy {
-	apiProxy.Policies.Policy = append(apiProxy.Policies.Policy, policyName)
+func AddPolicyAPIProxy(apiProxy APIProxy, policyNames ...string) APIProxy {
+	for _, policyName := range policyNames {
+		apiProxy.Policies.Policy = append(apiProxy.Policies.Policy, policyName)
+	}
 	return apiProxy
 }
 
