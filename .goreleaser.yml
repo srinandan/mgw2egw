@@ -1,0 +1,9 @@
+# .goreleaser.yml
+builds:
+  -
+    main: ./src/mgw2egw/main.go
+    binary: mgw2egw
+    goos:
+      - windows
+      - linux
+      - darwin
