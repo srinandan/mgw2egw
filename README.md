@@ -21,9 +21,12 @@ conf = Apigee Edge Microgateway configuration file (mandatory)
 
 #### Other Options
 ```
-fldr  = Folder to extract Apigee Bundle (default: /var/tmp)
-debug = Enable debug mode (default: false)
-trace = Enable trace on go-apigee-edge (default: false)
+fldr    = Folder to extract Apigee Bundle (default: /var/tmp)
+debug   = Enable debug mode (default: false)
+trace   = Enable trace on go-apigee-edge (default: false)
+importonly = Import the proxies only, do not deploy
+genonly = Generate the bundles only, do not import
+usejwt  = Use JWT policies to validate OAuth tokens
 ```
 
 ### How does it work?
